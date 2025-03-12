@@ -1,0 +1,23 @@
+let
+    // Get the current date
+    CurrentDate = DateTime.LocalNow(),
+    
+    // Determine the current fiscal quarter end date
+    FiscalQuarterEnd = if Date.Month(CurrentDate) <= 3 then #date(Date.Year(CurrentDate), 3, 31)
+                       else if Date.Month(CurrentDate) <= 6 then #date(Date.Year(CurrentDate), 6, 30)
+                       else if Date.Month(CurrentDate) <= 9 then #date(Date.Year(CurrentDate), 9, 30)
+                       else #date(Date.Year(CurrentDate), 12, 31),
+
+    // Load data from Snowflake
+    Source = Snowflake.Databases(Connection, WH, [CreateNavigationProperties=null, ConnectionTimeout=null, CommandTimeout=null]),
+    GEAR_Database = Source{[Name=DB, Kind="Database"]}[Data],
+    INSIGHTS_Schema = GEAR_Database{[Name=Schema, Kind="Schema"]}[Data],
+    CRMSV_DW_DATE_PBI_LOV_View = INSIGHTS_Schema{[Name="CRMSV_DW_DATE_PBI_LOV", Kind="View"]}[Data],
+    
+    // Select relevant columns
+    #"Removed Other Columns" = Table.SelectColumns(CRMSV_DW_DATE_PBI_LOV_View, {"MONTH", "Calendar Year", "Calendar Quarter", "PERIODDATE"}),
+    
+    // Filter rows to include only dates from 1/1/2022 to the end of the current fiscal quarter
+    #"Filtered Rows" = Table.SelectRows(#"Removed Other Columns", each [PERIODDATE] >= #date(2022, 1, 1) and [PERIODDATE] <= FiscalQuarterEnd)
+in
+    #"Filtered Rows"
